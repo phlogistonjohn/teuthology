@@ -97,6 +97,8 @@ def schedule_job(job_config, num=1, report_status=True):
     num = int(num)
     job = yaml.safe_dump(job_config)
     tube = job_config.pop('tube')
+    print("JJJJJJ", job, tube)
+    return
     beanstalk = teuthology.beanstalk.connect()
     beanstalk.use(tube)
     while num > 0:
