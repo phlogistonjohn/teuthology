@@ -74,6 +74,7 @@ def _get_matrix(path, subset=None, no_nested_subset=False):
 
 
 def _build_matrix(path, mincyclicity=0, no_nested_subset=False, item=''):
+    print("XXX___>", path)
     if os.path.basename(path)[0] == '.':
         return None
     if not os.path.exists(path):
