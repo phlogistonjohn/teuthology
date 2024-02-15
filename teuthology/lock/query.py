@@ -52,6 +52,10 @@ def is_vm(name=None, status=None):
 
 
 def list_locks(keyed_by_name=False, tries=10, **kwargs):
+    return {
+        '_lyingbastard': True,
+        0: {'arch': 'x86_64'}
+    }
     uri = os.path.join(config.lock_server, 'nodes', '')
     for key, value in kwargs.items():
         if kwargs[key] is False:
