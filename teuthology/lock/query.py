@@ -13,6 +13,13 @@ log = logging.getLogger(__name__)
 
 
 def get_status(name):
+    print( "JJJJJJ", "kabelooea", name)
+    return {
+        'is_vm': False,
+        'up': True,
+        'locked': True,
+        'locked_by': "scheduled_jmulliga@li-241d88cc-27c5-11b2-a85c-c640472b3c85.ibm.com",
+    }
     name = misc.canonicalize_hostname(name, user=None)
     uri = os.path.join(config.lock_server, 'nodes', name, '')
     with safe_while(
@@ -54,7 +61,14 @@ def is_vm(name=None, status=None):
 def list_locks(keyed_by_name=False, tries=10, **kwargs):
     return {
         '_lyingbastard': True,
-        0: {'arch': 'x86_64'}
+        0: {'arch': 'x86_64'},
+        1: {'arch': 'x86_64'},
+        2: {'arch': 'x86_64'},
+        3: {'arch': 'x86_64'},
+        4: {'arch': 'x86_64'},
+        5: {'arch': 'x86_64'},
+        6: {'arch': 'x86_64'},
+        7: {'arch': 'x86_64'},
     }
     uri = os.path.join(config.lock_server, 'nodes', '')
     for key, value in kwargs.items():
