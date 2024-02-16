@@ -151,7 +151,9 @@ def add_remotes(ctx, config):
     for name in ctx.config['targets'].keys():
         machs.append(name)
     for t, key in ctx.config['targets'].items():
+        log.warning("JJJJ: before suckification: %r", t)
         t = misc.canonicalize_hostname(t)
+        log.warning("JJJJ: after suckification: %r", t)
         try:
             if ctx.config['sshkeys'] == 'ignore':
                 key = None
@@ -174,9 +176,10 @@ def connect(ctx, config):
     """
     Connect to all remotes in ctx.cluster
     """
+    import inspect
     log.info('Opening connections...')
     for rem in ctx.cluster.remotes.keys():
-        log.debug('connecting to %s', rem.name)
+        log.debug('connecting to %s: %r, %s', rem.name, rem, inspect.getmodule(rem))
         rem.connect()
 
 
