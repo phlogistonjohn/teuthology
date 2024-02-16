@@ -350,6 +350,7 @@ class Remote(RemoteShell):
 
     def __init__(self, name, ssh=None, shortname=None, console=None,
                  host_key=None, keep_alive=True):
+        log.warning("JJJJ Hello Remote: %r, %r", name, shortname)
         self.name = name
         if '@' in name:
             (self.user, hostname) = name.split('@')
