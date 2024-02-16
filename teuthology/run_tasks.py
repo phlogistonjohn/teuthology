@@ -23,6 +23,7 @@ log = logging.getLogger(__name__)
 
 def get_task(name):
     # todo: support of submodules
+    log.warning(f"JJJJ get_task {name=}")
     if '.' in name:
         module_name, task_name = name.split('.')
     else:
@@ -50,6 +51,7 @@ def get_task(name):
 
 def _import(from_package, module_name, task_name, fail_on_import_error=False):
     full_module_name = '.'.join([from_package, module_name])
+    log.warning(f"JJJJ _import {full_module_name=}")
     try:
         module = __import__(
             full_module_name,
@@ -60,6 +62,7 @@ def _import(from_package, module_name, task_name, fail_on_import_error=False):
         )
     except ImportError:
         if fail_on_import_error:
+            log.warning(f"JJJJ _import OOF {sys.path!r}")
             raise
         else:
             if (
@@ -73,6 +76,7 @@ def _import(from_package, module_name, task_name, fail_on_import_error=False):
                 # here it will look like we just could't find the module,
                 # making the dependency issue difficult to discover.
                 raise
+            log.warning(f"JJJJ _import BAH {sys.path!r}")
             return None
     return module
 
