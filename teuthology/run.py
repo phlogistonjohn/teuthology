@@ -377,6 +377,7 @@ def main(args):
     config["tasks"] = validate_tasks(config)
 
     init_tasks = get_initial_tasks(lock, config, machine_type)
+    print("JJJJJJ", f"{init_tasks=}")
 
     # prepend init_tasks to the front of the task list
     config['tasks'][:0] = init_tasks
