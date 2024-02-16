@@ -50,7 +50,7 @@ def host_shortname(hostname):
     else:
         return hostname.split('.', 1)[0]
 
-def canonicalize_hostname(hostname, user='ubuntu'):
+def canonicalize_hostname(hostname, user='ceph'):
     hostname_expr = hostname_expr_templ.format(
         lab_domain=config.lab_domain.replace('.', r'\.'))
     match = re.match(hostname_expr, hostname)
@@ -164,7 +164,7 @@ def get_test_user(ctx=None):
     :param ctx: Unused; accepted for compatibility
     :returns:   str -- the user to run tests as on remote hosts
     """
-    return config.get('test_user', 'ubuntu')
+    return config.get('test_user', 'ceph')
 
 
 def get_archive_dir(ctx):

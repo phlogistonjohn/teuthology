@@ -375,7 +375,7 @@ def remove_configuration_files(ctx):
     """
     ctx.cluster.run(
         args=[
-            'rm', '-f', '/home/ubuntu/.cephdeploy.conf'
+            'rm', '-f', '/home/ceph/.cephdeploy.conf'
         ],
         timeout=30
     )

@@ -99,15 +99,15 @@ def tweak_ssh_config(ctx, config):
                 'echo',
                 'StrictHostKeyChecking no\n',
                 run.Raw('>'),
-                run.Raw('/home/ubuntu/.ssh/config'),
+                run.Raw('/home/ceph/.ssh/config'),
                 run.Raw('&&'),
                 'echo',
                 'UserKnownHostsFile ',
                 run.Raw('/dev/null'),
                 run.Raw('>>'),
-                run.Raw('/home/ubuntu/.ssh/config'),
+                run.Raw('/home/ceph/.ssh/config'),
                 run.Raw('&&'),
-                run.Raw('chmod 600 /home/ubuntu/.ssh/config'),
+                run.Raw('chmod 600 /home/ceph/.ssh/config'),
             ],
             wait=False,
         )
@@ -119,7 +119,7 @@ def tweak_ssh_config(ctx, config):
     finally:
         run.wait(
             ctx.cluster.run(
-                args=['rm',run.Raw('/home/ubuntu/.ssh/config')],
+                args=['rm',run.Raw('/home/ceph/.ssh/config')],
             wait=False
             ),
         )

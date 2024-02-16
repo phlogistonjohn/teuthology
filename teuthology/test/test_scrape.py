@@ -70,7 +70,7 @@ class TestScrape(object):
 
     def test_timeoutreason(self):
         with FakeResultDir(failure_reason=\
-            "status 124:  timeout '123 /home/ubuntu/cephtest/workunit.client.0/cephtool/test.sh'") as d:
+            "status 124:  timeout '123 /home/ceph/cephtest/workunit.client.0/cephtool/test.sh'") as d:
             job = scrape.Job(d.path, 1)
             assert scrape.TimeoutReason.could_be(job)
             assert scrape.TimeoutReason(job).match(job)
