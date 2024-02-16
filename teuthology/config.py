@@ -287,7 +287,9 @@ def _get_config_path():
     system_config_path = '/etc/teuthology.yaml'
     for path in (config_path, system_config_path):
         if os.path.exists(path):
+            print("JJJ", "config found:", path)
             return path
+    print("JJJ", "No config file found")
     return None
 
 
