@@ -130,6 +130,9 @@ def main(args):
                 job_procs.remove(proc)
         job = connection.reserve(timeout=60)
         if job is None:
+            print("JJJJJ", f"{job_procs=}")
+            if job_procs:
+                print("JJJ P", list(job_procs)[0].args)
             if exit_on_empty_queue and not job_procs:
                 log.info("Queue is empty and no supervisor processes running; exiting!")
                 break
@@ -147,6 +150,7 @@ def main(args):
             keep_running = False
 
         try:
+            print('JJJJJ', 'pweppin jorb')
             job_config, teuth_bin_path = worker.prep_job(
                 job_config,
                 log_file_path,
@@ -183,8 +187,8 @@ def main(args):
         try:
             job_proc = subprocess.Popen(
                 run_args,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                #stdout=subprocess.DEVNULL,
+                #stderr=subprocess.DEVNULL,
             )
             job_procs.add(job_proc)
             log.info('Job supervisor PID: %s', job_proc.pid)
