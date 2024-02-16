@@ -858,6 +858,15 @@ class ShamanProject(GitbuilderProject):
 
     @property
     def _result(self):
+        class DumDum:
+            def json(self):
+                return [
+                    {'url': 'nope',
+                     'extra': {'package_manager_version': 'barney'},
+                    },
+                ]
+        #return DumDum()
+
         if getattr(self, '_result_obj', None) is None:
             self._result_obj = self._search()
         return self._result_obj
