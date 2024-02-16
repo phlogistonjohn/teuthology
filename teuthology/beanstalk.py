@@ -12,6 +12,37 @@ from teuthology.config import config
 log = logging.getLogger(__name__)
 
 
+class Jorb:
+    def __init__(self):
+        self.jid = 42
+        with open(f'/tmp/tuethology-last-job.yaml', 'r') as fh:
+            self.body = fh.read()
+
+    def bury(self):
+        print("JJJJorb", "bury")
+
+    def delete(self):
+        print("JJJJorb", "delete")
+
+class LegumeEradicator:
+    def __init__(self, host, port):
+        print("JJJ", f"{host=}, {port=}")
+        self._fakeq = [Jorb()]
+
+    def watch(self, x):
+        print("JJJJ", x)
+        return
+
+    def ignore(self, x):
+        print("JJJJ", f"ignore {x=}")
+
+    def reserve(self, timeout=0):
+        print("JJJJJ", f"{timeout=}")
+        if self._fakeq:
+            return self._fakeq.pop()
+        return None
+
+
 def connect():
     host = config.queue_host
     port = config.queue_port
@@ -19,6 +50,7 @@ def connect():
         raise RuntimeError(
             'Beanstalk queue information not found in {conf_path}'.format(
                 conf_path=config.teuthology_yaml))
+    return LegumeEradicator(host, port)
     return beanstalkc.Connection(host=host, port=port, parse_yaml=yaml.safe_load)
 
 
