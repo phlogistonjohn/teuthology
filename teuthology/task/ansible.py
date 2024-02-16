@@ -442,6 +442,7 @@ class Ansible(Task):
         skip_tags = self.config.get('skip_tags')
         if skip_tags:
             args.extend(['--skip-tags', skip_tags])
+        args.append("--ssh-common-args=-oStrictHostKeyChecking=no -F /home/jmulliga/devel/oquack/ssh-config")
         return args
 
     def teardown(self):
@@ -498,6 +499,7 @@ class CephLab(Ansible):
         super(CephLab, self).__init__(ctx, config)
 
     def begin(self):
+        return
         # Write foo to ~/.vault_pass.txt if it's missing.
         # In almost all cases we don't need the actual vault password.
         # Touching an empty file broke as of Ansible 2.4
