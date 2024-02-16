@@ -102,8 +102,9 @@ def main(args):
     result_proc = None
 
     if teuth_config.teuthology_path is None:
-        repo_utils.fetch_teuthology('main')
-    repo_utils.fetch_qa_suite('main')
+        raise ValueError("DONT HIT THIS")
+        #repo_utils.fetch_teuthology('main')
+    #repo_utils.fetch_qa_suite('main')
 
     keep_running = True
     job_procs = set()
