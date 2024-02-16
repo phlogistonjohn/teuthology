@@ -66,6 +66,7 @@ def connect(user_at_host, host_key=None, keep_alive=False, timeout=60,
             ssh.load_system_host_keys()
 
     else:
+        log.warning(f"JJJJJJ {host_key=}")
         keytype, key = host_key.split(' ', 1)
         ssh.get_host_keys().add(
             hostname=host,
@@ -83,6 +84,7 @@ def connect(user_at_host, host_key=None, keep_alive=False, timeout=60,
     ssh_config_path = config.ssh_config_path or "~/.ssh/config"
     ssh_config_path = os.path.expanduser(ssh_config_path)
     if not key_filename and os.path.exists(ssh_config_path):
+        log.warning(f"JJJ SSH {ssh_config_path=}")
         ssh_config = paramiko.SSHConfig()
         ssh_config.parse(open(ssh_config_path))
         opts = ssh_config.lookup(host)
