@@ -265,8 +265,8 @@ def _update_package_list_and_install(ctx, remote, rpm, config):
                  .format(install_cmd=install_cmd, rpms=' '.join(rpm))
             )
     else:
-        for cpack in rpm:
-            if ldir:
+        if ldir:
+            for cpack in rpm:
                 _retry_if_failures_are_recoverable(remote,
                   args='''
                   if test -e {pkg} ; then
@@ -279,11 +279,13 @@ def _update_package_list_and_install(ctx, remote, rpm, config):
                              install_cmd=install_cmd,
                              pkg=os.path.join(ldir, cpack),
                              cpack=cpack))
-            else:
-                _retry_if_failures_are_recoverable(remote,
-                    args='{install_cmd} {cpack}'
-                         .format(install_cmd=install_cmd, cpack=cpack)
-                    )
+        else:
+            # if ldir is not set, run the install as a single batch
+            # letting rpm handle transactions more sensibly
+            install_all = f'{install_cmd} {" ".join(rpm)}'
+            _retry_if_failures_are_recoverable(
+                remote, args=install_all
+            )
 
 def _yum_fix_repo_priority(remote, project, uri):
     """
