@@ -59,7 +59,7 @@ def lock_many_openstack(ctx, num, machine_type, user=None, description=None,
 def lock_many(ctx, num, machine_type, user=None, description=None,
               os_type=None, os_version=None, arch=None, reimage=True):
     print("JJJJJJ FFF", num, machine_type, user, description, os_type, os_version, arch, reimage)
-    return {'ceph0': 'foo bar', 'ceph1': ''}
+    return {'ceph0': None, 'ceph1': None}
     if user is None:
         user = misc.get_user()
 
