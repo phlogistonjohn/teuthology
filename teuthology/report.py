@@ -45,6 +45,8 @@ def main(args):
     log = init_logging()
     reporter = ResultsReporter(archive_base, save=save, refresh=refresh,
                                log=log)
+    if reporter.base_uri is None:
+        return
     if dead and not job:
         for run_name in run:
             try_mark_run_dead(run[0])
