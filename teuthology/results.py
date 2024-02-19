@@ -53,6 +53,8 @@ def results(archive_dir, name, email, timeout, dry_run):
         log.info('Waiting up to %d seconds for tests to finish...', timeout)
 
     reporter = ResultsReporter()
+    if reporter.base_uri is None:
+        return
     while timeout > 0:
         if time.time() - starttime > timeout:
             log.warning('test(s) did not finish before timeout of %d seconds',
