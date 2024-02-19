@@ -25,6 +25,8 @@ from teuthology.dispatcher import supervisor
 from teuthology.exceptions import SkipJob
 from teuthology.lock import ops as lock_ops
 from teuthology import safepath
+from teuthology.jobqueue.base import QueueDirection
+import teuthology.jobqueue.choice
 
 log = logging.getLogger(__name__)
 start_time = datetime.utcnow()
@@ -97,8 +99,7 @@ def main(args):
 
     load_config(archive_dir=archive_dir)
 
-    connection = beanstalk.connect()
-    beanstalk.watch_tube(connection, tube)
+    queue = teuthology.jobqueue.choice.from_config(tube, QueueDirection.OUT)
     result_proc = None
 
     if teuth_config.teuthology_path is None:
@@ -128,7 +129,7 @@ def main(args):
             if rc is not None:
                 worst_returncode = max([worst_returncode, rc])
                 job_procs.remove(proc)
-        job = connection.reserve(timeout=60)
+        job = queue.get()
         if job is None:
             print("JJJJJ", f"{job_procs=}")
             if job_procs:
@@ -142,8 +143,8 @@ def main(args):
         job.bury()
         job_id = job.jid
         log.info('Reserved job %d', job_id)
-        log.info('Config is: %s', job.body)
-        job_config = yaml.safe_load(job.body)
+        job_config = job.job_config()
+        log.info('Config is: %s', job_config)
         job_config['job_id'] = str(job_id)
 
         if job_config.get('stop_worker'):
