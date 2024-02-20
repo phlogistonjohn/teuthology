@@ -26,7 +26,7 @@ class Job(base.Job):
 
 
 class JobQueue(base.JobQueue):
-    _retry_empty_sec = 30
+    _retry_empty_sec = 10
 
     def __init__(
         self, path: str, tube: str, direction: base.QueueDirection
