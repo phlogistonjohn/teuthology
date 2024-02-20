@@ -93,8 +93,9 @@ def main(args):
         loglevel = logging.DEBUG
     logging.getLogger().setLevel(loglevel)
     log.setLevel(loglevel)
-    log_file_path = os.path.join(log_dir, f"dispatcher.{tube}.{os.getpid()}")
-    setup_log_file(log_file_path)
+    #log_file_path = os.path.join(log_dir, f"dispatcher.{tube}.{os.getpid()}")
+    log_file_path = os.path.join(log_dir, f"dispatcher.log")
+    setup_log_file(log_file_path, file_only=True)
     install_except_hook()
 
     load_config(archive_dir=archive_dir)
