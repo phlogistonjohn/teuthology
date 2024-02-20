@@ -70,7 +70,7 @@ log = logging.getLogger(__name__)
 log.debug('teuthology version: %s', __version__)
 
 
-def setup_log_file(log_path):
+def setup_log_file(log_path, file_only=False):
     root_logger = logging.getLogger()
     handlers = root_logger.handlers
     for handler in handlers:
@@ -86,6 +86,8 @@ def setup_log_file(log_path):
     handler.setFormatter(formatter)
     root_logger.addHandler(handler)
     root_logger.info('teuthology version: %s', __version__)
+    if file_only:
+        root_logger.handlers[:] = [h for h in root_logger.handlers if isinstance(h, logging.FileHandler)]
 
 
 def install_except_hook():
