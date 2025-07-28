@@ -6,8 +6,8 @@ export TEUTHOLOGY_CONFIG=$PWD/.teuthology.yaml
 
 SUITE=orch/cephadm/smb/
 SUITE_ARGS=(--filter-out ubuntu,runc --filter smb)  # deploy_smb_proxy_{en,dis}abled
-BUILD_BRANCH=wip-phlogistonjohn-testing-2025-01-31-1053
-SUITE_BRANCH=wip-phlogistonjohn-testing-2025-01-31-1053
+BUILD_BRANCH=wip-phlogistonjohn-testing-2025-07-23-1649
+SUITE_BRANCH=wip-phlogistonjohn-testing-2025-07-23-1649
 DB_FILE=$HOME/tmp/teuthology/queue.db
 OVERRIDES=$PWD/overrides.yaml
 BACKEND="sqlite://${DB_FILE}"
@@ -52,7 +52,7 @@ machines_add_ceph_vms() {
 
 machines_vm_revert() {
     for h in "${VMS[@]}" ; do
-        virsh snapshot-revert --domain $h --snapshotname pre-bootstrap &
+        virsh snapshot-revert --domain $h --snapshotname installed &
     done
     wait
 }
