@@ -194,7 +194,7 @@ class SqliteMachinePool(MachinePool):
         return {v['name']:None for v in self._list()}
 
     def _list(
-        self.,
+        self,
         machine_type=None,
         up=None,
         locked=None,
