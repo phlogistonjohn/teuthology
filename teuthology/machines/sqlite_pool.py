@@ -191,8 +191,18 @@ class SqliteMachinePool(MachinePool):
         count=None,
         tries=None,
     ):
+        return {v['name']:None for v in self._list()}
+
+    def _list(
+        self.,
+        machine_type=None,
+        up=None,
+        locked=None,
+        count=None,
+        tries=None,
+    ):
         result = {
-            v['name']: None
+            v
             for v in self.dbmgr.select(
                 machine_type=machine_type, up=up, locked=locked, limit=count
             )
@@ -277,8 +287,9 @@ class SqliteMachinePool(MachinePool):
 
     @_track
     def statuses(self, name: 'list[str]') -> 'list[dict]':
-        for mname in  self.list():
-            out.append({'name': mname})
+        out = []
+        for v in self._list():
+            out.append({'name': v['name'], 'machine_type': v['machine_type']})
         return out
 
     @_track
