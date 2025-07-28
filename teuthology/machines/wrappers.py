@@ -143,7 +143,7 @@ def machine_statuses(
     machine_pool: MachinePool | None = None,
 ):
     pool = auto_pool(pool=machine_pool)
-    return pool.statuses(machines=names)
+    return pool.statuses(names)
 
 
 def machine_list(
