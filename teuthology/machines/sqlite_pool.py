@@ -45,7 +45,8 @@ class _SqliteDBManager:
                         machine_type TEXT,
                         up INTEGER,
                         in_use INTEGER,
-                        cookie TEXT,
+                        user TEXT,
+                        desc TEXT,
                         info JSON
                     )
                     """
@@ -62,6 +63,7 @@ class _SqliteDBManager:
             self._conn.commit()
         except Exception:
             self._conn.rollback()
+            raise
 
     def select(
         self,
@@ -69,15 +71,20 @@ class _SqliteDBManager:
         machine_type: str | None = None,
         up: bool | None = None,
         locked: bool | None = None,
-        cookie: str | None = None,
+        user: str | None = None,
+        desc: str | None = None,
         limit: int | None = None,
     ):
-        query = "SELECT name, machine_type, up, in_use, cookie, info FROM machines"
+        query = (
+            "SELECT name, machine_type, up, in_use, user, desc, info"
+            " FROM machines"
+        )
         where = _Where()
         where.add_if('machine_type', machine_type)
         where.add_if('up', up)
         where.add_if('in_use', locked)
-        where.add_if('cookie', cookie)
+        where.add_if('user', user)
+        where.add_if('desc', desc)
         where_params = where.parameters()
         if where_params:
             query += f' {where}'
@@ -93,7 +100,7 @@ class _SqliteDBManager:
     def add_machine(self, name, machine_type, info):
         with self._tx() as cur:
             cur.execute(
-                "INSERT INTO machines VALUES (?,?, 1, 0, '', ?)",
+                "INSERT INTO machines VALUES (?,?, 1, 0, '', '', ?)",
                 (name, machine_type, info),
             )
 
@@ -105,21 +112,32 @@ class _SqliteDBManager:
         with self._tx() as cur:
             cur.execute('DELETE FROM machines')
 
-    def take(self, machine_type: str, count: int, cookie: str):
+    def take(self, machine_type: str, count: int, user: str, desc: str):
         count = int(count)
-        query = "UPDATE machines SET in_use=1, cookie=? WHERE rowid IN (SELECT rowid FROM machines WHERE in_use=0 AND machine_type=? LIMIT ?)"
+        query = (
+            "UPDATE machines"
+            " SET in_use=1, user=?, desc=?"
+            " WHERE rowid"
+            " IN ("
+            "  SELECT rowid FROM machines"
+            "   WHERE in_use=0 AND machine_type=? LIMIT ?"
+            ")"
+        )
         with self._tx() as cur:
-            cur.execute(query, (cookie, machine_type, count))
+            cur.execute(query, (user, desc, machine_type, count))
             if cur.rowcount != count:
                 raise TooFewMachines()
 
-    def release(self, name: str, cookie: str | None = None) -> bool:
+    def release(
+        self, name: str, user: str | None = None, desc: str | None = None
+    ) -> bool:
         if not self.automatic_release:
             return False
         where = _Where()
         where.add_if('name', name)
-        where.add_if('cookie', cookie)
-        query = f'UPDATE machines SET in_use=0, cookie="" {where}'
+        where.add_if('user', user)
+        where.add_if('desc', desc)
+        query = f"UPDATE machines SET in_use=0, user='', desc='' {where}"
         with self._tx() as cur:
             cur.execute(query, tuple(where.parameters()))
             modified = cur.rowcount >= 1
@@ -143,20 +161,6 @@ class _Where:
 
     def parameters(self) -> list[Any]:
         return [v for _, v in self._where]
-
-
-def _job_cookie(ctx: Any, user: str, description: str) -> str:
-    """Create a compact string describing the job. Cache said
-    string on the ctx if the ctx is valid.
-    """
-    cookie = getattr(ctx, 'job_cookie', None)
-    if cookie is None:
-        user = user or 'default'
-        description = description or 'missing'
-        cookie = f"{user}/{description}"
-        if ctx:
-            setattr(ctx, "job_cookie", None)
-    return cookie
 
 
 def _track(fn):
@@ -227,6 +231,10 @@ class SqliteMachinePool(MachinePool):
         reimage=True,
         min_spare: int = 0,
     ) -> None:
+        user = user or getattr(ctx, 'owner', '')
+        description = description or getattr(ctx, 'archive', '')
+        if not user or not description:
+            raise ValueError('missing user or description (archive)')
         while True:
             available = self.dbmgr.select(
                 machine_type=machine_type,
@@ -243,12 +251,12 @@ class SqliteMachinePool(MachinePool):
                 )
                 time.sleep(self._delay_sec)
                 continue
-            cookie = _job_cookie(ctx, user, description)
             try:
                 self.dbmgr.take(
                     machine_type,
                     num,
-                    cookie,
+                    user,
+                    description,
                 )
             except TooFewMachines:
                 log.warning('too few nodes to take (possible race)')
@@ -258,7 +266,8 @@ class SqliteMachinePool(MachinePool):
                 machine_type=machine_type,
                 up=True,
                 locked=True,
-                cookie=cookie,
+                user=user,
+                desc=description,
             )
             assert num == len(reserved), f"needed {num} machines, got {len(reserved)}"
             ctx.config['targets'] = {v['name']: None for v in reserved}
@@ -275,7 +284,11 @@ class SqliteMachinePool(MachinePool):
         constraints=None,
     ) -> bool:
         # TODO constraints
-        return self.dbmgr.release(name)
+        return self.dbmgr.release(
+            name,
+            user=user,
+            desc=description,
+        )
 
     @_track
     def is_vm(self, name: str) -> bool:
@@ -295,7 +308,8 @@ class SqliteMachinePool(MachinePool):
                 'name': v['name'],
                 'machine_type': v['machine_type'],
                 'locked': v['in_use'],
-                'description': v['cookie'],
+                'user': v['user'],
+                'description': v['desc'],
                 'info': v['info'],
             })
         return out
@@ -319,7 +333,7 @@ def main():
     parser.add_argument('--rm-all', action='store_true')
     parser.add_argument('--rm', action='append')
     parser.add_argument('--reserve', type=int)
-    parser.add_argument('--cookie', type=str)
+    parser.add_argument('--user-desc', type=str)
     parser.add_argument('--machine-type')
     parser.add_argument('--info')
     cli = parser.parse_args()
@@ -333,7 +347,7 @@ def main():
         mpool.dbmgr.add_machine(name, cli.machine_type, cli.info)
     if cli.reserve:
         ctx = Context()
-        setattr(ctx, 'job_cookie', cli.cookie)
+        user, desc = getattr(cli, 'user_desc', '').split('%', 1)
         mpool.reserve(ctx, cli.reserve, cli.machine_type)
     if cli.list:
         yaml.safe_dump(mpool.everything(), sys.stdout, sort_keys=False)
