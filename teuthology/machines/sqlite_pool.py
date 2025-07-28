@@ -286,10 +286,18 @@ class SqliteMachinePool(MachinePool):
         return False
 
     @_track
-    def statuses(self, name: 'list[str]') -> 'list[dict]':
+    def statuses(self, machines: 'list[str]') -> 'list[dict]':
         out = []
         for v in self._list():
-            out.append({'name': v['name'], 'machine_type': v['machine_type']})
+            if machines and v['name'] not in machines:
+                continue
+            out.append({
+                'name': v['name'],
+                'machine_type': v['machine_type'],
+                'locked': v['in_use'],
+                'description': v['cookie'],
+                'info': v['info'],
+            })
         return out
 
     @_track
