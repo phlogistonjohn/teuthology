@@ -69,10 +69,8 @@ def unlock_safe(
             _temp_context(),
             name=name,
             user=owner,
-            constraints={
-                "run_name": run_name,
-                "job_id": job_id,
-            },
+            run_name=run_name,
+            job_id=job_id,
         )
 
     # Does this NEED to be parallel? It is in the original version.
