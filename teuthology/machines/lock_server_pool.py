@@ -60,21 +60,21 @@ class LockServerMachinePool(MachinePool):
         user=None,
         description=None,
         status_hint=None,
-        constraints=None,
+        run_name=None,
+        job_id=None,
     ) -> bool:
-        if constraints:
-            assert isinstance(constraints, dict)
+        if job_id or run_name:
             assert (
                 not description
-            ), "description not supported with constraints"
+            ), "description not supported with job_id/run_name"
             assert (
                 not status_hint
-            ), "status_hint not supported with constraints"
+            ), "status_hint not supported with job_id/run_name"
             return ops.unlock_one_safe(
                 name=name,
                 owner=user,
-                run_name=constraints.get('run_name', ''),
-                job_id=constraints.get('job_id', ''),
+                run_name=run_name,
+                job_id=job_id,
             )
         return ops.unlock_one(
             name=name,
