@@ -1,10 +1,14 @@
 from typing import Any
 
-import functools
 import contextlib
+import functools
+import json
 import logging
+import shlex
 import sqlite3
+import subprocess
 import time
+import traceback
 
 from teuthology.config import config
 from teuthology.machines.base import MachinePool
@@ -18,12 +22,19 @@ class TooFewMachines(Exception):
 
 
 class _SqliteDBManager:
-    def __init__(self, path: str) -> None:
+    def __init__(self, path: str, *, automatic_release: bool = False) -> None:
         assert path
         self._path = path
         self._connect()
         self._create_tables()
-        self.automatic_release = False
+        self.automatic_release = automatic_release
+        log.info(
+            "Initialized sqlite machine pool db manager: %r, %r",
+            path,
+            automatic_release,
+        )
+        if automatic_release is False:
+            raise ValueError("x")
 
     def _connect(self) -> None:
         path = self._path
@@ -34,6 +45,7 @@ class _SqliteDBManager:
         log.info("sqlite3 db path: %s", path)
         self._conn = sqlite3.connect(path, isolation_level=None)
         self._conn.row_factory = sqlite3.Row
+        self._conn.set_trace_callback(log.info)
 
     def _create_tables(self) -> None:
         try:
@@ -48,6 +60,14 @@ class _SqliteDBManager:
                         user TEXT,
                         desc TEXT,
                         info JSON
+                    )
+                    """
+                )
+                self._conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS hooks (
+                        hook TEXT UNIQUE,
+                        command JSON
                     )
                     """
                 )
@@ -84,7 +104,7 @@ class _SqliteDBManager:
         where.add_if('up', up)
         where.add_if('in_use', locked)
         where.add_if('user', user)
-        where.add_if('desc', desc)
+        where.add_if('desc', desc, (int, str, _Like))
         where_params = where.parameters()
         if where_params:
             query += f' {where}'
@@ -131,17 +151,47 @@ class _SqliteDBManager:
     def release(
         self, name: str, user: str | None = None, desc: str | None = None
     ) -> bool:
-        if not self.automatic_release:
-            return False
         where = _Where()
         where.add_if('name', name)
         where.add_if('user', user)
-        where.add_if('desc', desc)
-        query = f"UPDATE machines SET in_use=0, user='', desc='' {where}"
+        where.add_if('desc', desc, (int, str, _Like))
+        if self.automatic_release:
+            query = f"UPDATE machines SET in_use=0, user='', desc='' {where}"
+        else:
+            query = f"UPDATE machines SET up=0 {where}"
         with self._tx() as cur:
             cur.execute(query, tuple(where.parameters()))
             modified = cur.rowcount >= 1
         return modified
+
+    def get_hook(self, hook_name: str) -> dict:
+        query =  "SELECT command FROM hooks WHERE hook = ? LIMIT 1"
+        with self._tx() as cur:
+            cur.execute(query, (hook_name,))
+            rows = cur.fetchall()
+            log.info("Rows: %r", rows)
+        if rows:
+            return json.loads(rows[0]['command'])
+        return {}
+
+    def set_hook(self, hook_name: str, command: dict) -> None:
+        query = "INSERT or REPLACE INTO hooks VALUES (?, ?)"
+        cj = json.dumps(command)
+        with self._tx() as cur:
+            cur.execute(query, (hook_name, cj))
+
+
+class _Like:
+    def __init__(self, *values):
+        self.values = list(values)
+
+    def __str__(self):
+        return ''.join(self.values)
+
+
+class _EndsWith(_Like):
+    def __init__(self, value):
+        super().__init__('%', value)
 
 
 class _Where:
@@ -151,16 +201,31 @@ class _Where:
     def add(self, key: str, value: Any) -> None:
         self._where.append((key, value))
 
-    def add_if(self, key: str, value: Any) -> None:
-        if value is not None:
-            self.add(key, value)
+    def add_if(self, key: str, value: Any, allowed_types: 'Iterable[Type] | None' = None) -> None:
+        if value is None:
+            return
+        if not allowed_types:
+            allowed_types = (int, str)
+        if not isinstance(value, tuple(allowed_types)):
+            raise TypeError(f'type {type(value)} not allowed')
+        self.add(key, value)
 
     def __str__(self) -> str:
-        wh = ' AND '.join(f'{k}=?' for k, _ in self._where)
+        wh = ' AND '.join(self._op(k, v) for k, v in self._where)
         return f'WHERE ({wh})'
 
+    def _op(self, key: str, value: Any):
+        if isinstance(value, _Like):
+            return f'{key} LIKE ?'
+        return f'{key} = ?'
+
+    def _value(self, value):
+        if isinstance(value, int):
+            return value
+        return str(value)
+
     def parameters(self) -> list[Any]:
-        return [v for _, v in self._where]
+        return [self._value(v) for _, v in self._where]
 
 
 def _track(fn):
@@ -175,12 +240,57 @@ def _track(fn):
     return _fn
 
 
+class _Hook:
+    def __init__(self, arguments: list[str], env: dict[str, str] | None = None) -> None:
+        self.arguments = arguments
+        self.env = env
+        if not isinstance(self.arguments, list):
+            raise ValueError('expected arguments list')
+        if '${NAME}' not in self.arguments:
+            raise ValueError('no name variable in arguments')
+        if env and not isinstance(self.env, dict):
+            raise ValueError('expected env dict')
+
+    def _replace(self, name: str) -> list[str]:
+        out = []
+        for term in self.arguments:
+            if term == '${NAME}':
+                out.append(name)
+            else:
+                out.append(term)
+        return out
+
+    def execute(self, name: str) -> None:
+        command = self._replace(name)
+        log.info(
+            "Running hook command: %s",
+            " ".join(shlex.quote(c) for c in command)
+        )
+        kwargs = {}
+        if self.env is not None:
+            kwargs['env'] = self.env
+        result = subprocess.run(command, capture_output=True)
+        log.info("Command result: %s: %r, %r", result.returncode,
+            result.stdout, result.stderr)
+        if result.returncode != 0:
+            raise RuntimeError('hook command failed')
+
+
+class _NoOpHook:
+    def execute(self, name: str) -> None:
+        return None
+
 
 class SqliteMachinePool(MachinePool):
-    def __init__(self, *, path=None):
+    def __init__(self, *, path=None, automatic_release=False):
         if not path:
             path = config.machine_pool
-        self.dbmgr = _SqliteDBManager(path)
+        if not automatic_release:
+            _sqp = config.get('sqlite_pool', {}) or {}
+            log.warning('xxx: %r', _sqp)
+            automatic_release = _sqp.get('automatic_release', False)
+            log.warning("zzz: %r", automatic_release)
+        self.dbmgr = _SqliteDBManager(path, automatic_release=automatic_release)
         self._delay_sec = 15
 
     def description(self) -> str:
@@ -281,13 +391,17 @@ class SqliteMachinePool(MachinePool):
         user=None,
         description=None,
         status_hint=None,
-        constraints=None,
+        run_name=None,
+        job_id=None,
     ) -> bool:
-        # TODO constraints
+        log.info("WFT")
+        desc = None
+        if run_name or job_id:
+            desc = _EndsWith(f"{run_name}/{job_id}")
         return self.dbmgr.release(
             name,
             user=user,
-            desc=description,
+            desc=desc,
         )
 
     @_track
@@ -316,7 +430,18 @@ class SqliteMachinePool(MachinePool):
 
     @_track
     def reimage_machines(self, machines, machine_type):
-        return {m: None for m in machines}
+        hook = self._remiage_hook()
+        return {m: hook.execute(m) for m in machines}
+
+    def _remiage_hook(self) -> _Hook:
+        if not self.dbmgr.automatic_release:
+            log.info("Automatic release not set, will not reimage")
+            return _NoOpHook()
+        hook_cfg = self.dbmgr.get_hook('reimage')
+        if hook_cfg:
+            return _Hook(**hook_cfg)
+        log.info("No reimage hook command found")
+        return _NoOpHook()
 
 
 def main():
@@ -336,6 +461,9 @@ def main():
     parser.add_argument('--user-desc', type=str)
     parser.add_argument('--machine-type')
     parser.add_argument('--info')
+    parser.add_argument('--release', type=json.loads)
+    parser.add_argument('--set-hook', type=json.loads)
+    parser.add_argument('--get-hook', type=str)
     cli = parser.parse_args()
 
     mpool = SqliteMachinePool()
@@ -351,6 +479,34 @@ def main():
         mpool.reserve(ctx, cli.reserve, cli.machine_type)
     if cli.list:
         yaml.safe_dump(mpool.everything(), sys.stdout, sort_keys=False)
+    if cli.release:
+        log.info("RELEASE %r", cli.release)
+        name = cli.release.get('name')
+        user = cli.release.get('user')
+        status_hint = cli.release.get('status_hint')
+        run_name = cli.release.get('run_name')
+        job_id = cli.release.get('job_id')
+        mpool.release(
+            Context(),
+            name,
+            user=user,
+            status_hint=status_hint,
+            run_name=run_name,
+            job_id=job_id,
+        )
+    if cli.set_hook:
+        if not isinstance(cli.set_hook, dict):
+            raise ValueError('incorrect type')
+        _keys = list(cli.set_hook.keys())
+        if len(_keys) != 1:
+            raise ValueError('incorrect number of keys')
+        hook_name = _keys[0]
+        hook_command = cli.set_hook[hook_name]
+        log.info('SET HOOK %r', hook_name, hook_command)
+        _Hook(**hook_command)  # validate
+        mpool.dbmgr.set_hook(hook_name, hook_command)
+    if cli.get_hook:
+        print(mpool.dbmgr.get_hook(cli.get_hook))
 
 
 if __name__ == '__main__':
