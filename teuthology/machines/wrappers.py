@@ -132,7 +132,12 @@ def machine_status(
     *,
     machine_pool: MachinePool | None = None,
 ):
-    return auto_pool(pool=machine_pool).statuses([name])[0]
+    pool = auto_pool(pool=machine_pool)
+    machine_status_fn = getattr(pool, 'machine_status', None)
+    if machine_status_fn is not None:
+        return machine_status_fn(name)
+    # fall back to getting one machine from statuses
+    return pool.statuses([name])[0]
 
 
 def machine_statuses(
