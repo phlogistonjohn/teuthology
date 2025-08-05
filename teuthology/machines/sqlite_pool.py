@@ -241,15 +241,31 @@ def _track(fn):
 
 
 class _Hook:
-    def __init__(self, arguments: list[str], env: dict[str, str] | None = None) -> None:
+    def __init__(self, arguments: list[str]) -> None:
         self.arguments = arguments
-        self.env = env
         if not isinstance(self.arguments, list):
             raise ValueError('expected arguments list')
+
+    def _execute(self, command: list[str]) -> None:
+        log.info(
+            "Running hook command: %s",
+            " ".join(shlex.quote(c) for c in command)
+        )
+        result = subprocess.run(command, capture_output=True)
+        log.info("Command result: %s: %r, %r", result.returncode,
+            result.stdout, result.stderr)
+        if result.returncode != 0:
+            raise RuntimeError('hook command failed')
+
+    def execute(self) -> None:
+        self._execute(self.arguments)
+
+
+class _NamedHook(_Hook):
+    def __init__(self, arguments: list[str]) -> None:
+        super().__init__(arguments)
         if '${NAME}' not in self.arguments:
             raise ValueError('no name variable in arguments')
-        if env and not isinstance(self.env, dict):
-            raise ValueError('expected env dict')
 
     def _replace(self, name: str) -> list[str]:
         out = []
@@ -262,18 +278,7 @@ class _Hook:
 
     def execute(self, name: str) -> None:
         command = self._replace(name)
-        log.info(
-            "Running hook command: %s",
-            " ".join(shlex.quote(c) for c in command)
-        )
-        kwargs = {}
-        if self.env is not None:
-            kwargs['env'] = self.env
-        result = subprocess.run(command, capture_output=True)
-        log.info("Command result: %s: %r, %r", result.returncode,
-            result.stdout, result.stderr)
-        if result.returncode != 0:
-            raise RuntimeError('hook command failed')
+        self._execute(command)
 
 
 class _NoOpHook:
@@ -429,15 +434,35 @@ class SqliteMachinePool(MachinePool):
         return out
 
     @_track
+    def status(self, machine: str) -> dict:
+        # this function is sometimes fed fqdns and that's not what we want.
+        name = machine.split('.', 1)[0]
+        name = name.split('@', 1)[-1]
+        return self.statuses([name])[0]
+
+    @_track
     def reimage_machines(self, machines, machine_type):
         hook = self._remiage_hook()
-        return {m: hook.execute(m) for m in machines}
+        res = {m: hook.execute(m) for m in machines}
+        post_hook = self._post_reimage_hook()
+        post_hook.execute()
+        return res
 
     def _remiage_hook(self) -> _Hook:
         if not self.dbmgr.automatic_release:
             log.info("Automatic release not set, will not reimage")
             return _NoOpHook()
         hook_cfg = self.dbmgr.get_hook('reimage')
+        if hook_cfg:
+            return _NamedHook(**hook_cfg)
+        log.info("No reimage hook command found")
+        return _NoOpHook()
+
+    def _post_reimage_hook(self) -> _Hook:
+        if not self.dbmgr.automatic_release:
+            log.info("Automatic release not set, will not reimage")
+            return _NoOpHook()
+        hook_cfg = self.dbmgr.get_hook('postreimage')
         if hook_cfg:
             return _Hook(**hook_cfg)
         log.info("No reimage hook command found")
