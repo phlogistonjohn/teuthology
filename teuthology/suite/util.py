@@ -169,6 +169,8 @@ def git_validate_sha1(project, sha1, project_owner='ceph'):
     we have specific urls to HEAD for github and git.ceph.com/gitweb
     for now
     '''
+    if os.environ.get("NO_VALIDATE_SHA1") == "true":
+        return sha1
     url = build_git_url(project, project_owner)
 
     if '/github.com/' in url:
